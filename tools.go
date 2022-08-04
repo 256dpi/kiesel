@@ -17,7 +17,7 @@ type ReadWriter interface {
 func EndPrefixRange(prefix []byte) []byte {
 	for i := len(prefix) - 1; i >= 0; i-- {
 		if prefix[i] < 0xff {
-			prefix[i] += 1
+			prefix[i]++
 			return prefix[:i+1]
 		}
 	}

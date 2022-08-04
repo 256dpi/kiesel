@@ -1,7 +1,7 @@
 package pebblex
 
 import (
-	_ "unsafe"
+	_ "unsafe" // allow links
 
 	"github.com/cockroachdb/pebble"
 )
