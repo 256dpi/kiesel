@@ -1,4 +1,4 @@
-package pebblex
+package kiesel
 
 import "github.com/cockroachdb/pebble"
 

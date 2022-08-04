@@ -1,4 +1,4 @@
-package pebblex
+package kiesel
 
 import (
 	_ "unsafe" // allow links
