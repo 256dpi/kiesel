@@ -36,7 +36,7 @@ var optionsString = `[Version]
   read_compaction_rate=16000
   read_sampling_multiplier=16
   strict_wal_tail=true
-  table_cache_shards=10
+  table_cache_shards=2
   table_property_collectors=[]
   validate_on_ingest=false
   wal_dir=
@@ -116,5 +116,6 @@ func TestCockroachOptions(t *testing.T) {
 		FS:    fs,
 		Cache: cache,
 	})
+	opts.Experimental.TableCacheShards = 2
 	assert.Equal(t, optionsString, opts.String())
 }
