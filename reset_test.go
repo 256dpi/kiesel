@@ -13,6 +13,8 @@ func TestReset(t *testing.T) {
 
 	withDB(false, func(db *pebble.DB, _ vfs.FS) {
 		batch := db.NewIndexedBatch()
+		assert.False(t, Reset(batch, 0, 0))
+
 		assert.False(t, Reset(batch, min, max))
 		assert.True(t, Reset(batch, min, max))
 

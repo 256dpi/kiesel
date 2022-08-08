@@ -19,6 +19,9 @@ func Reset(batch *pebble.Batch, min, max int) bool {
 	// check buffer
 	reused := true
 	if cap(buffer) < min || cap(buffer) > max {
+		if length > min {
+			min = length
+		}
 		buffer = make([]byte, length, min)
 		reused = false
 	}
