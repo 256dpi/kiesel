@@ -17,7 +17,7 @@ import (
 
 func TestBatchManager(t *testing.T) {
 	withDB(true, func(db *pebble.DB, _ vfs.FS) {
-		bm := NewBatchManager(db, 8)
+		bm := NewBatchManager(db, 8, 4<<20, 16<<20)
 
 		var res error
 		err := bm.Queue(func(batch *pebble.Batch) (bool, error) {
@@ -126,7 +126,7 @@ func BenchmarkBatchManager(b *testing.B) {
 		var i uint64
 		buf := make([]byte, 8)
 
-		bm := NewBatchManager(db, 4*runtime.GOMAXPROCS(0))
+		bm := NewBatchManager(db, 4*runtime.GOMAXPROCS(0), 4<<20, 16<<20)
 
 		b.SetParallelism(4)
 		b.ReportAllocs()

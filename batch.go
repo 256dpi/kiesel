@@ -18,20 +18,24 @@ type batchManagerItem struct {
 // in scenarios where many goroutines perform transactions that only modify a
 // small set of keys.
 type BatchManager struct {
-	db    *pebble.DB
-	queue chan *batchManagerItem
-	done  chan struct{}
-	pool  sync.Pool
+	db     *pebble.DB
+	queue  chan *batchManagerItem
+	minBuf int
+	maxBuf int
+	done   chan struct{}
+	pool   sync.Pool
 }
 
 // NewBatchManager will create and return a new batch manager. The queue size
 // specifies the number parallel operations that may be coalesced.
-func NewBatchManager(db *pebble.DB, queueSize int) *BatchManager {
+func NewBatchManager(db *pebble.DB, queueSize, minBuffer, maxBuffer int) *BatchManager {
 	// create batch manager
 	bm := &BatchManager{
-		db:    db,
-		queue: make(chan *batchManagerItem, queueSize),
-		done:  make(chan struct{}),
+		db:     db,
+		queue:  make(chan *batchManagerItem, queueSize),
+		minBuf: minBuffer,
+		maxBuf: maxBuffer,
+		done:   make(chan struct{}),
 		pool: sync.Pool{
 			New: func() interface{} {
 				return &batchManagerItem{}
@@ -107,7 +111,7 @@ func (b *BatchManager) process() {
 		}
 
 		// reset batch
-		Reset(batch, 4<<20, 16<<20) // 4 MB, 16 MB
+		Reset(batch, b.minBuf, b.maxBuf)
 
 		// prepare flag
 		useSync := false

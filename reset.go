@@ -3,7 +3,7 @@ package kiesel
 import "github.com/cockroachdb/pebble"
 
 // Reset will reset the provided batch and attempt to reuse the underlying
-// buffer up to the specified maximum. If a buffer is absent or tot big, it will
+// buffer up to the specified maximum. If a buffer is absent or too big, it will
 // allocate a new buffer with the specified minimum instead. It returns whether
 // the underlying buffer has been reused.
 func Reset(batch *pebble.Batch, min, max int) bool {
