@@ -1,10 +1,14 @@
 package kiesel
 
 import (
+	"errors"
 	"sync"
 
 	"github.com/cockroachdb/pebble"
 )
+
+// ErrClosed is returned if the batch manager has already been closed.
+var ErrClosed = errors.New("closed")
 
 type batchManagerItem struct {
 	work   func(batch *pebble.Batch) (bool, error)
@@ -24,6 +28,8 @@ type BatchManager struct {
 	maxBuf int
 	done   chan struct{}
 	pool   sync.Pool
+	closed bool
+	mutex  sync.RWMutex
 }
 
 // NewBatchManager will create and return a new batch manager. The queue size
@@ -55,6 +61,15 @@ func NewBatchManager(db *pebble.DB, queueSize, minBuffer, maxBuffer int) *BatchM
 // synced after application. If a result function is provided it will be called
 // with the result of the batch application.
 func (b *BatchManager) Queue(work func(batch *pebble.Batch) (bool, error), result func(error)) error {
+	// acquire mutex
+	b.mutex.RLock()
+	defer b.mutex.RUnlock()
+
+	// check closed
+	if b.closed {
+		return ErrClosed
+	}
+
 	// get item
 	item := b.pool.Get().(*batchManagerItem)
 
@@ -86,8 +101,13 @@ func (b *BatchManager) Queue(work func(batch *pebble.Batch) (bool, error), resul
 
 // Close will close the batch manager.
 func (b *BatchManager) Close() {
+	// acquire mutex
+	b.mutex.Lock()
+	defer b.mutex.Unlock()
+
 	// close queue
 	close(b.queue)
+	b.closed = true
 
 	// await done
 	<-b.done

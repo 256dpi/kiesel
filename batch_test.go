@@ -86,6 +86,11 @@ func TestBatchManager(t *testing.T) {
 		assert.Equal(t, 0, resErrs)
 
 		bm.Close()
+
+		err = bm.Queue(func(batch *pebble.Batch) (bool, error) {
+			return false, nil
+		}, nil)
+		assert.Equal(t, ErrClosed, err)
 	})
 }
 
