@@ -6,6 +6,11 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+func TestNewCacheWithShards(t *testing.T) {
+	cache := NewCacheWithShards(64, 2)
+	cache.Unref()
+}
+
 func TestPrefixRangeEnd(t *testing.T) {
 	end := EndPrefixRange(nil)
 	assert.Nil(t, end)
