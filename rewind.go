@@ -40,6 +40,8 @@ func Rewind(batch *pebble.Batch, length int) {
 			break
 		}
 
+		// TODO: Support new range key operations.
+
 		// reapply operations
 		var err error
 		switch kind {
@@ -57,7 +59,7 @@ func Rewind(batch *pebble.Batch, length int) {
 			err = batch.DeleteRange(key, value, nil)
 		default:
 			// unless new key types are added, this should never happen
-			panic(fmt.Sprintf("unexpected key: %s", kind.String()))
+			panic(fmt.Sprintf("unexpected key kind: %s", kind.String()))
 		}
 		if err != nil {
 			// batch operations should never return an error
