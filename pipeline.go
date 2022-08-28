@@ -7,23 +7,23 @@ import (
 	"github.com/cockroachdb/pebble"
 )
 
-// ErrClosed is returned if the batch manager has already been closed.
-var ErrClosed = errors.New("closed")
+// ErrPipelineClosed is returned if the pipeline has already been closed.
+var ErrPipelineClosed = errors.New("pipeline closed")
 
-type batchManagerItem struct {
+type pipelineItem struct {
 	work   func(batch *pebble.Batch) (bool, error)
 	result func(error)
 	error  error
 	mutex  sync.Mutex
 }
 
-// BatchManager provides a mechanism to coalesce multiple mini-transactions into
+// Pipeline provides a mechanism to coalesce multiple mini-transactions into
 // a single batch to reduce overhead and improve performance. It is most useful
 // in scenarios where many goroutines perform transactions that only modify a
 // small set of keys.
-type BatchManager struct {
+type Pipeline struct {
 	db     *pebble.DB
-	queue  chan *batchManagerItem
+	queue  chan *pipelineItem
 	minBuf int
 	maxBuf int
 	done   chan struct{}
@@ -32,27 +32,27 @@ type BatchManager struct {
 	mutex  sync.RWMutex
 }
 
-// NewBatchManager will create and return a new batch manager. The queue size
-// specifies the number parallel operations that may be coalesced.
-func NewBatchManager(db *pebble.DB, queueSize, minBuffer, maxBuffer int) *BatchManager {
-	// create batch manager
-	bm := &BatchManager{
+// NewPipeline will create and return a new pipeline. The queue size specifies
+// the number parallel operations that may be coalesced.
+func NewPipeline(db *pebble.DB, queueSize, minBuffer, maxBuffer int) *Pipeline {
+	// create pipeline
+	p := &Pipeline{
 		db:     db,
-		queue:  make(chan *batchManagerItem, queueSize),
+		queue:  make(chan *pipelineItem, queueSize),
 		minBuf: minBuffer,
 		maxBuf: maxBuffer,
 		done:   make(chan struct{}),
 		pool: sync.Pool{
 			New: func() interface{} {
-				return &batchManagerItem{}
+				return &pipelineItem{}
 			},
 		},
 	}
 
 	// run processor
-	go bm.process()
+	go p.process()
 
-	return bm
+	return p
 }
 
 // Queue will submit the provided work function to the queue. The function will
@@ -60,18 +60,18 @@ func NewBatchManager(db *pebble.DB, queueSize, minBuffer, maxBuffer int) *BatchM
 // the performed changes are rolled back. If it returns true, the writes are
 // synced after application. If a result function is provided it will be called
 // with the result of the batch application.
-func (b *BatchManager) Queue(work func(batch *pebble.Batch) (bool, error), result func(error)) error {
+func (b *Pipeline) Queue(work func(batch *pebble.Batch) (bool, error), result func(error)) error {
 	// acquire mutex
 	b.mutex.RLock()
 	defer b.mutex.RUnlock()
 
 	// check closed
 	if b.closed {
-		return ErrClosed
+		return ErrPipelineClosed
 	}
 
 	// get item
-	item := b.pool.Get().(*batchManagerItem)
+	item := b.pool.Get().(*pipelineItem)
 
 	// set functions
 	item.work = work
@@ -93,14 +93,14 @@ func (b *BatchManager) Queue(work func(batch *pebble.Batch) (bool, error), resul
 	item.mutex.Unlock()
 
 	// recycle item
-	*item = batchManagerItem{}
+	*item = pipelineItem{}
 	b.pool.Put(item)
 
 	return err
 }
 
-// Close will close the batch manager.
-func (b *BatchManager) Close() {
+// Close will stop and close the pipeline.
+func (b *Pipeline) Close() {
 	// acquire mutex
 	b.mutex.Lock()
 	defer b.mutex.Unlock()
@@ -113,9 +113,9 @@ func (b *BatchManager) Close() {
 	<-b.done
 }
 
-func (b *BatchManager) process() {
+func (b *Pipeline) process() {
 	// allocate list
-	list := make([]*batchManagerItem, 0, cap(b.queue))
+	list := make([]*pipelineItem, 0, cap(b.queue))
 
 	// create batch
 	batch := b.db.NewIndexedBatch()

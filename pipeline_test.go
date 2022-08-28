@@ -15,9 +15,9 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestBatchManager(t *testing.T) {
+func TestPipeline(t *testing.T) {
 	withDB(true, func(db *pebble.DB, _ vfs.FS) {
-		bm := NewBatchManager(db, 8, 4<<20, 16<<20)
+		bm := NewPipeline(db, 8, 4<<20, 16<<20)
 
 		var res error
 		err := bm.Queue(func(batch *pebble.Batch) (bool, error) {
@@ -90,7 +90,7 @@ func TestBatchManager(t *testing.T) {
 		err = bm.Queue(func(batch *pebble.Batch) (bool, error) {
 			return false, nil
 		}, nil)
-		assert.Equal(t, ErrClosed, err)
+		assert.Equal(t, ErrPipelineClosed, err)
 	})
 }
 
@@ -126,12 +126,12 @@ func BenchmarkNativeBatch(b *testing.B) {
 	})
 }
 
-func BenchmarkBatchManager(b *testing.B) {
+func BenchmarkPipeline(b *testing.B) {
 	withDB(false, func(db *pebble.DB, _ vfs.FS) {
 		var i uint64
 		buf := make([]byte, 8)
 
-		bm := NewBatchManager(db, 4*runtime.GOMAXPROCS(0), 4<<20, 16<<20)
+		bm := NewPipeline(db, 4*runtime.GOMAXPROCS(0), 4<<20, 16<<20)
 
 		b.SetParallelism(4)
 		b.ReportAllocs()
