@@ -10,8 +10,19 @@ import (
 // ErrPipelineClosed is returned if the pipeline has already been closed.
 var ErrPipelineClosed = errors.New("pipeline closed")
 
+// Action defines the action take by the pipeline after executing a work
+// function.
+type Action int
+
+// The available actions.
+const (
+	Defer Action = iota
+	Commit
+	Sync
+)
+
 type pipelineItem struct {
-	work   func(batch *pebble.Batch) (bool, error)
+	work   func(batch *pebble.Batch) (Action, error)
 	result func(error)
 	error  error
 	mutex  sync.Mutex
@@ -57,10 +68,10 @@ func NewPipeline(db *pebble.DB, queueSize, minBuffer, maxBuffer int) *Pipeline {
 
 // Queue will submit the provided work function to the queue. The function will
 // be called with a new or used batch for operation. If it returns an error,
-// the performed changes are rolled back. If it returns true, the writes are
-// synced after application. If a result function is provided it will be called
-// with the result of the batch application.
-func (b *Pipeline) Queue(work func(batch *pebble.Batch) (bool, error), result func(error)) error {
+// the performed changes are rolled back. On success the final indicated action
+// is taken after executing all current operations. If a result function is
+// provided it will be called with the result of the batch application.
+func (b *Pipeline) Queue(work func(batch *pebble.Batch) (Action, error), result func(error)) error {
 	// acquire mutex
 	b.mutex.RLock()
 	defer b.mutex.RUnlock()
@@ -119,6 +130,7 @@ func (b *Pipeline) process() {
 
 	// create batch
 	batch := b.db.NewIndexedBatch()
+	Reset(batch, b.minBuf, b.maxBuf)
 
 	for {
 		// await item
@@ -130,17 +142,14 @@ func (b *Pipeline) process() {
 			return
 		}
 
-		// reset batch
-		Reset(batch, b.minBuf, b.maxBuf)
-
-		// prepare flag
-		useSync := false
+		// prepare final action
+		var final Action
 
 		// get size
 		size := len(batch.Repr())
 
 		// yield batch
-		snc, err := item.work(batch)
+		action, err := item.work(batch)
 		if err != nil {
 			// rewind batch
 			Rewind(batch, size)
@@ -152,10 +161,12 @@ func (b *Pipeline) process() {
 			// start over
 			continue
 		} else {
-			// set sync
-			useSync = useSync || snc
+			// update final
+			if action > final {
+				final = action
+			}
 
-			// add channel to list
+			// add item to list
 			list = append(list, item)
 		}
 
@@ -168,7 +179,7 @@ func (b *Pipeline) process() {
 			size = len(batch.Repr())
 
 			// yield batch
-			snc, err = item.work(batch)
+			action, err = item.work(batch)
 			if err != nil {
 				// rewind batch
 				Rewind(batch, size)
@@ -177,22 +188,31 @@ func (b *Pipeline) process() {
 				item.error = err
 				item.mutex.Unlock()
 			} else {
-				// set sync
-				useSync = useSync || snc
+				// update final
+				if action > final {
+					final = action
+				}
 
-				// add to list
+				// add item to list
 				list = append(list, item)
 			}
 		}
 
-		// get options
-		opts := pebble.NoSync
-		if useSync {
-			opts = pebble.Sync
-		}
-
 		// apply batch
-		err = batch.Commit(opts)
+		err = nil
+		if final >= Commit || batch.Len() >= b.maxBuf {
+			// get options
+			opts := pebble.NoSync
+			if final >= Sync {
+				opts = pebble.Sync
+			}
+
+			// commit batch
+			err = batch.Commit(opts)
+
+			// reset batch
+			Reset(batch, b.minBuf, b.maxBuf)
+		}
 
 		// handle result
 		for _, item := range list {

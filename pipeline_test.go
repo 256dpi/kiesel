@@ -17,27 +17,35 @@ import (
 
 func TestPipeline(t *testing.T) {
 	withDB(true, func(db *pebble.DB, _ vfs.FS) {
-		bm := NewPipeline(db, 8, 4<<20, 16<<20)
+		p := NewPipeline(db, 8, 4<<20, 16<<20)
 
 		var res error
-		err := bm.Queue(func(batch *pebble.Batch) (bool, error) {
-			return false, io.EOF
+		err := p.Queue(func(batch *pebble.Batch) (Action, error) {
+			return 0, io.EOF
 		}, func(err error) {
 			res = err
 		})
 		assert.Equal(t, io.EOF, err)
 		assert.NoError(t, res)
 
-		err = bm.Queue(func(batch *pebble.Batch) (bool, error) {
-			return true, nil
+		err = p.Queue(func(batch *pebble.Batch) (Action, error) {
+			return Sync, nil
 		}, func(err error) {
 			res = err
 		})
-		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "WAL disabled")
 		assert.Error(t, res)
 
-		err = bm.Queue(func(batch *pebble.Batch) (bool, error) {
-			return false, nil
+		err = p.Queue(func(batch *pebble.Batch) (Action, error) {
+			return Defer, nil
+		}, func(err error) {
+			res = err
+		})
+		assert.NoError(t, err)
+		assert.NoError(t, res)
+
+		err = p.Queue(func(batch *pebble.Batch) (Action, error) {
+			return Commit, nil
 		}, func(err error) {
 			res = err
 		})
@@ -52,7 +60,7 @@ func TestPipeline(t *testing.T) {
 		wg.Add(16)
 		for i := 0; i < 16; i++ {
 			go func(i int) {
-				err := bm.Queue(func(batch *pebble.Batch) (bool, error) {
+				err := p.Queue(func(batch *pebble.Batch) (Action, error) {
 					if i == 0 {
 						time.Sleep(10 * time.Millisecond)
 					}
@@ -61,9 +69,9 @@ func TestPipeline(t *testing.T) {
 						batches++
 					}
 					if i%2 == 0 {
-						return false, io.EOF
+						return 0, io.EOF
 					}
-					return false, nil
+					return Commit, nil
 				}, func(err error) {
 					if err == io.EOF {
 						resErrs++
@@ -85,10 +93,10 @@ func TestPipeline(t *testing.T) {
 		assert.Equal(t, 8, errs)
 		assert.Equal(t, 0, resErrs)
 
-		bm.Close()
+		p.Close()
 
-		err = bm.Queue(func(batch *pebble.Batch) (bool, error) {
-			return false, nil
+		err = p.Queue(func(batch *pebble.Batch) (Action, error) {
+			return Commit, nil
 		}, nil)
 		assert.Equal(t, ErrPipelineClosed, err)
 	})
@@ -126,31 +134,31 @@ func BenchmarkNativeBatch(b *testing.B) {
 	})
 }
 
-func BenchmarkPipeline(b *testing.B) {
+func BenchmarkPipelineCommit(b *testing.B) {
 	withDB(false, func(db *pebble.DB, _ vfs.FS) {
 		var i uint64
 		buf := make([]byte, 8)
 
-		bm := NewPipeline(db, 4*runtime.GOMAXPROCS(0), 4<<20, 16<<20)
+		p := NewPipeline(db, 4*runtime.GOMAXPROCS(0), 4<<20, 16<<20)
 
 		b.SetParallelism(4)
 		b.ReportAllocs()
 		b.ResetTimer()
 
 		b.RunParallel(func(pb *testing.PB) {
-			fn := func(batch *pebble.Batch) (bool, error) {
+			fn := func(batch *pebble.Batch) (Action, error) {
 				binary.BigEndian.PutUint64(buf, atomic.AddUint64(&i, 1))
 
 				err := batch.Set(buf, buf, nil)
 				if err != nil {
-					return false, err
+					return 0, err
 				}
 
-				return false, nil
+				return Commit, nil
 			}
 
 			for pb.Next() {
-				err := bm.Queue(fn, nil)
+				err := p.Queue(fn, nil)
 				if err != nil {
 					panic(err)
 				}
@@ -159,6 +167,42 @@ func BenchmarkPipeline(b *testing.B) {
 
 		b.StopTimer()
 
-		bm.Close()
+		p.Close()
+	})
+}
+func BenchmarkPipelineDefer(b *testing.B) {
+	withDB(false, func(db *pebble.DB, _ vfs.FS) {
+		var i uint64
+		buf := make([]byte, 8)
+
+		p := NewPipeline(db, 4*runtime.GOMAXPROCS(0), 4<<20, 16<<20)
+
+		b.SetParallelism(4)
+		b.ReportAllocs()
+		b.ResetTimer()
+
+		b.RunParallel(func(pb *testing.PB) {
+			fn := func(batch *pebble.Batch) (Action, error) {
+				binary.BigEndian.PutUint64(buf, atomic.AddUint64(&i, 1))
+
+				err := batch.Set(buf, buf, nil)
+				if err != nil {
+					return 0, err
+				}
+
+				return Defer, nil
+			}
+
+			for pb.Next() {
+				err := p.Queue(fn, nil)
+				if err != nil {
+					panic(err)
+				}
+			}
+		})
+
+		b.StopTimer()
+
+		p.Close()
 	})
 }
