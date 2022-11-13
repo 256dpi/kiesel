@@ -70,7 +70,9 @@ func NewPipeline(db *pebble.DB, queueSize, minBuffer, maxBuffer int) *Pipeline {
 // be called with a new or used batch for operation. If it returns an error,
 // the performed changes are rolled back. On success the final indicated action
 // is taken after executing all current operations. If a result function is
-// provided it will be called with the result of the batch application.
+// provided it will be called with the result of the batch application. Only if
+// the action is Sync and both calls return no error, the changes can be
+// considered to be durable.
 func (b *Pipeline) Queue(work func(batch *pebble.Batch) (Action, error), result func(error)) error {
 	// acquire mutex
 	b.mutex.RLock()
