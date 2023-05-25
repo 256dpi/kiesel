@@ -17,8 +17,9 @@ var optionsString = `[Version]
   cleaner=delete
   compaction_debt_concurrency=1073741824
   comparer=leveldb.BytewiseComparator
-  delete_range_flush_delay=10s
   disable_wal=false
+  flush_delay_delete_range=10s
+  flush_delay_range_key=10s
   flush_split_bytes=4194304
   format_major_version=1
   l0_compaction_concurrency=10
@@ -47,6 +48,7 @@ var optionsString = `[Version]
 [Level "0"]
   block_restart_interval=16
   block_size=32768
+  block_size_threshold=90
   compression=Snappy
   filter_policy=rocksdb.BuiltinBloomFilter
   filter_type=table
@@ -56,6 +58,7 @@ var optionsString = `[Version]
 [Level "1"]
   block_restart_interval=16
   block_size=32768
+  block_size_threshold=90
   compression=Snappy
   filter_policy=rocksdb.BuiltinBloomFilter
   filter_type=table
@@ -65,6 +68,7 @@ var optionsString = `[Version]
 [Level "2"]
   block_restart_interval=16
   block_size=32768
+  block_size_threshold=90
   compression=Snappy
   filter_policy=rocksdb.BuiltinBloomFilter
   filter_type=table
@@ -74,6 +78,7 @@ var optionsString = `[Version]
 [Level "3"]
   block_restart_interval=16
   block_size=32768
+  block_size_threshold=90
   compression=Snappy
   filter_policy=rocksdb.BuiltinBloomFilter
   filter_type=table
@@ -83,6 +88,7 @@ var optionsString = `[Version]
 [Level "4"]
   block_restart_interval=16
   block_size=32768
+  block_size_threshold=90
   compression=Snappy
   filter_policy=rocksdb.BuiltinBloomFilter
   filter_type=table
@@ -92,6 +98,7 @@ var optionsString = `[Version]
 [Level "5"]
   block_restart_interval=16
   block_size=32768
+  block_size_threshold=90
   compression=Snappy
   filter_policy=rocksdb.BuiltinBloomFilter
   filter_type=table
@@ -101,6 +108,7 @@ var optionsString = `[Version]
 [Level "6"]
   block_restart_interval=16
   block_size=32768
+  block_size_threshold=90
   compression=Snappy
   filter_policy=none
   filter_type=table

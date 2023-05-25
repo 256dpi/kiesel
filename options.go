@@ -91,7 +91,7 @@ func (b *Blueprint) ensureDefaults() {
 // BuildOptions supports building pebble options based on a blueprint. The
 // default values applied to the blueprint represents the chosen settings in
 // CockroachDB the primary users of pebble.
-// https://github.com/cockroachdb/cockroach/blob/master/pkg/storage/pebble.go#L488
+// https://github.com/cockroachdb/cockroach/blob/master/pkg/storage/pebble.go#L570
 // https://github.com/cockroachdb/pebble/blob/master/cmd/pebble/db.go#L53
 func BuildOptions(bp Blueprint) *pebble.Options {
 	// ensure defaults
@@ -143,7 +143,8 @@ func BuildOptions(bp Blueprint) *pebble.Options {
 	}
 
 	// ensure database is flushed when ranges are deleted
-	opts.Experimental.DeleteRangeFlushDelay = 10 * time.Second
+	opts.FlushDelayDeleteRange = 10 * time.Second
+	opts.FlushDelayRangeKey = 10 * time.Second
 
 	// pace deletions to a reasonable amount
 	opts.Experimental.MinDeletionRate = 128 << 20 // 128 MB
