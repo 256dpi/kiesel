@@ -1,6 +1,6 @@
 module github.com/256dpi/kiesel
 
-go 1.18
+go 1.19
 
 require (
 	github.com/cockroachdb/pebble v0.0.0-20230525135702-4ca2bec55d11
