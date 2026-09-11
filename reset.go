@@ -1,6 +1,6 @@
 package kiesel
 
-import "github.com/cockroachdb/pebble"
+import "github.com/cockroachdb/pebble/v2"
 
 // Reset will reset the provided batch and attempt to reuse the underlying
 // buffer up to the specified maximum. If a buffer is absent or too big, it will

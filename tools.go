@@ -3,13 +3,13 @@ package kiesel
 import (
 	_ "unsafe" // allow links
 
-	"github.com/cockroachdb/pebble"
+	"github.com/cockroachdb/pebble/v2"
 )
 
 // NewCacheWithShards allows the creation of a cache with an explicit number of
 // shards.
 //
-//go:linkname NewCacheWithShards github.com/cockroachdb/pebble/internal/cache.newShards
+//go:linkname NewCacheWithShards github.com/cockroachdb/pebble/v2/internal/cache.NewWithShards
 //go:nosplit
 func NewCacheWithShards(size int64, shards int) *pebble.Cache
 

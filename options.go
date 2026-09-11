@@ -3,9 +3,9 @@ package kiesel
 import (
 	"time"
 
-	"github.com/cockroachdb/pebble"
-	"github.com/cockroachdb/pebble/bloom"
-	"github.com/cockroachdb/pebble/vfs"
+	"github.com/cockroachdb/pebble/v2"
+	"github.com/cockroachdb/pebble/v2/bloom"
+	"github.com/cockroachdb/pebble/v2/vfs"
 )
 
 // Blueprint describes the values used to build options for pebble.
@@ -18,11 +18,6 @@ type Blueprint struct {
 
 	// Whether to not use bloom filters on all except the last level.
 	NoFilters bool
-
-	// The number of levels to use.
-	//
-	// Default: 7
-	Levels int
 
 	// The mem table size.
 	//
@@ -62,9 +57,6 @@ type Blueprint struct {
 }
 
 func (b *Blueprint) ensureDefaults() {
-	if b.Levels <= 0 {
-		b.Levels = 7
-	}
 	if b.MemTableSize <= 0 {
 		b.MemTableSize = 64 << 20
 	}
@@ -105,10 +97,9 @@ func BuildOptions(bp Blueprint) *pebble.Options {
 		L0CompactionThreshold:       2,
 		L0StopWritesThreshold:       1000,
 		LBaseMaxBytes:               int64(bp.MaxBaseLevelSize),
-		Levels:                      make([]pebble.LevelOptions, bp.Levels),
-		MaxConcurrentCompactions:    func() int { return 3 },
+		CompactionConcurrencyRange:  func() (int, int) { return 1, 3 },
 		MaxOpenFiles:                1000,
-		MemTableSize:                bp.MemTableSize,
+		MemTableSize:                uint64(bp.MemTableSize),
 		MemTableStopWritesThreshold: bp.MaxMemTables,
 	}
 
@@ -129,17 +120,14 @@ func BuildOptions(bp Blueprint) *pebble.Options {
 
 		// set or multiply target file size for each level
 		if i == 0 {
-			l.TargetFileSize = int64(bp.StartFileSize)
+			opts.TargetFileSizes[i] = int64(bp.StartFileSize)
 		} else {
-			l.TargetFileSize = opts.Levels[i-1].TargetFileSize * int64(bp.FileSizeMultiplier)
+			opts.TargetFileSizes[i] = opts.TargetFileSizes[i-1] * int64(bp.FileSizeMultiplier)
 		}
-
-		// ensure defaults
-		l.EnsureDefaults()
 	}
 	if !bp.NoFilters {
 		// disable filter on last level
-		opts.Levels[6].FilterPolicy = nil
+		opts.Levels[len(opts.Levels)-1].FilterPolicy = pebble.NoFilterPolicy
 	}
 
 	// ensure database is flushed when ranges are deleted
@@ -147,7 +135,7 @@ func BuildOptions(bp Blueprint) *pebble.Options {
 	opts.FlushDelayRangeKey = 10 * time.Second
 
 	// pace deletions to a reasonable amount
-	opts.Experimental.MinDeletionRate = 128 << 20 // 128 MB
+	opts.TargetByteDeletionRate = 128 << 20 // 128 MB
 
 	// ensure defaults
 	opts.EnsureDefaults()

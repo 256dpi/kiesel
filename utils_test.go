@@ -1,8 +1,8 @@
 package kiesel
 
 import (
-	"github.com/cockroachdb/pebble"
-	"github.com/cockroachdb/pebble/vfs"
+	"github.com/cockroachdb/pebble/v2"
+	"github.com/cockroachdb/pebble/v2/vfs"
 )
 
 func withDB(noSync bool, fn func(db *pebble.DB, fs vfs.FS)) {
@@ -27,11 +27,14 @@ func withDB(noSync bool, fn func(db *pebble.DB, fs vfs.FS)) {
 func scan(db ReadWriter) map[string]string {
 	ret := map[string]string{}
 
-	iter := db.NewIter(nil)
+	iter, err := db.NewIter(nil)
+	if err != nil {
+		panic(err)
+	}
 	for iter.First(); iter.Valid(); iter.Next() {
 		ret[string(iter.Key())] = string(iter.Value())
 	}
-	err := iter.Close()
+	err = iter.Close()
 	if err != nil {
 		panic(err)
 	}

@@ -1,9 +1,10 @@
 package kiesel
 
 import (
+	"encoding/binary"
 	"fmt"
 
-	"github.com/cockroachdb/pebble"
+	"github.com/cockroachdb/pebble/v2"
 )
 
 // Rewind will restore a batch to the provided length. The length must be
@@ -35,15 +36,17 @@ func Rewind(batch *pebble.Batch, length int) {
 		}
 
 		// get next key
-		kind, key, value, ok := reader.Next()
-		if !ok {
+		kind, key, value, ok, err := reader.Next()
+		if err != nil {
+			// a batch that was built by pebble should always decode
+			panic(fmt.Sprintf("reader error: %s", err.Error()))
+		} else if !ok {
 			break
 		}
 
 		// TODO: Support new range key operations.
 
 		// reapply operations
-		var err error
 		switch kind {
 		case pebble.InternalKeyKindDelete:
 			err = batch.Delete(key, nil)
@@ -57,6 +60,9 @@ func Rewind(batch *pebble.Batch, length int) {
 			err = batch.SingleDelete(key, nil)
 		case pebble.InternalKeyKindRangeDelete:
 			err = batch.DeleteRange(key, value, nil)
+		case pebble.InternalKeyKindDeleteSized:
+			size, _ := binary.Uvarint(value)
+			err = batch.DeleteSized(key, uint32(size), nil)
 		default:
 			// unless new key types are added, this should never happen
 			panic(fmt.Sprintf("unexpected key kind: %s", kind.String()))

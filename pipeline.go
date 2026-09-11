@@ -4,7 +4,7 @@ import (
 	"errors"
 	"sync"
 
-	"github.com/cockroachdb/pebble"
+	"github.com/cockroachdb/pebble/v2"
 )
 
 // ErrPipelineClosed is returned if the pipeline has already been closed.
